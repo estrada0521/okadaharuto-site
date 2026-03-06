@@ -99,14 +99,15 @@ send_to_pane() {
 }
 
 declare -a PANE_TARGETS=()
-declare -A SEEN_PANES=()
 
 queue_pane() {
   local pane_id="$1"
+  local existing
   [[ -n "$pane_id" ]] || return 1
-  [[ -n "${SEEN_PANES[$pane_id]:-}" ]] && return 0
+  for existing in "${PANE_TARGETS[@]:-}"; do
+    [[ "$existing" == "$pane_id" ]] && return 0
+  done
   PANE_TARGETS+=("$pane_id")
-  SEEN_PANES["$pane_id"]=1
 }
 
 for target in "${TARGETS[@]}"; do
