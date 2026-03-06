@@ -165,6 +165,7 @@ usage() {
 Usage:
   multiagent-dev list [--verbose]
   multiagent-dev [status] [--session NAME] [--all]
+  multiagent-dev brief [--session NAME]
   multiagent-dev resume [--session NAME | --latest] [--detach]
   multiagent-dev kill [--session NAME | --all]
   multiagent-dev rename --session NAME --to NEW_NAME
@@ -198,6 +199,7 @@ Options:
   --install            Create symlinks in /usr/local/bin for multiagent-dev and agent-send
                        so they can be run from anywhere
   list                 List existing sessions for the current workspace
+  brief                Send the agent communication briefing manually
   status               Show session status without starting or changing anything
   resume               Attach to an existing session without creating a new one
   kill                 Kill an existing session explicitly
@@ -278,6 +280,7 @@ show_status() {
 while [[ $# -gt 0 ]]; do
   case "$1" in
     list)        MODE="list"; shift ;;
+    brief)       MODE="brief"; shift ;;
     status)      MODE="status"; shift ;;
     resume)      MODE="resume"; shift ;;
     kill)        MODE="kill"; shift ;;
@@ -345,6 +348,24 @@ fi
 if [[ "$MODE" == "list" ]]; then
   command -v tmux >/dev/null 2>&1 || { echo "tmux is required." >&2; exit 1; }
   list_sessions
+  exit 0
+fi
+
+if [[ "$MODE" == "brief" ]]; then
+  command -v tmux >/dev/null 2>&1 || { echo "tmux is required." >&2; exit 1; }
+  if [[ -z "$SESSION_NAME" ]] && [[ "$SESSION_NAME_EXPLICIT" -eq 0 ]]; then
+    SESSION_NAME="$(resolve_target_session_name)" || exit 1
+  fi
+  if [[ -z "$SESSION_NAME" ]]; then
+    echo "Session does not exist" >&2
+    exit 1
+  fi
+  if ! tmux has-session -t "$SESSION_NAME" 2>/dev/null; then
+    echo "Session does not exist: $SESSION_NAME" >&2
+    exit 1
+  fi
+  brief_session_agents "$SESSION_NAME"
+  echo "Sent briefing to agents in session: $SESSION_NAME"
   exit 0
 fi
 
@@ -819,6 +840,17 @@ Multiagent session note for ${agent_name}:
 EOF
 )
   send_text_to_pane "$pane_id" "$briefing"
+}
+
+brief_session_agents() {
+  local session="$1" agent upper pane_id
+  for agent in claude codex gemini copilot; do
+    upper="$(printf '%s' "$agent" | tr '[:lower:]' '[:upper:]')"
+    pane_id="$(tmux show-environment -t "$session" "MULTIAGENT_PANE_${upper}" 2>/dev/null | sed 's/^[^=]*=//' || true)"
+    [[ -n "$pane_id" ]] || continue
+    wait_for_agent_ready "$pane_id" "$agent"
+    send_agent_capability_briefing "$pane_id" "$agent"
+  done
 }
 
 
