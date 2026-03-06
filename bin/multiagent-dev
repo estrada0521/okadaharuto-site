@@ -784,6 +784,19 @@ send_text_to_pane() {
   tmux send-keys -t "$pane_id" "" Enter
 }
 
+wait_for_agent_ready() {
+  local pane_id="$1" max_attempts=40 attempt current_command
+  for (( attempt=0; attempt<max_attempts; attempt++ )); do
+    current_command="$(tmux display-message -p -t "$pane_id" '#{pane_current_command}' 2>/dev/null || true)"
+    case "$current_command" in
+      bash|zsh|sh|login) sleep 0.5 ;;
+      "") sleep 0.5 ;;
+      *) sleep 0.5; return 0 ;;
+    esac
+  done
+  return 0
+}
+
 send_agent_capability_briefing() {
   local pane_id="$1" agent_name="$2" briefing
   briefing=$(cat <<EOF
@@ -816,8 +829,8 @@ else
   done
 fi
 
-sleep 2
 for (( i=0; i<NUM_AGENTS; i++ )); do
+  wait_for_agent_ready "${PANES[$i]}"
   send_agent_capability_briefing "${PANES[$i]}" "${SELECTED_AGENTS[$i]}"
 done
 
