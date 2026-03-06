@@ -9,6 +9,7 @@ agent-send <target> "メッセージ"
 ```
 
 `agent-send` は現在の multiagent セッションを自動解決し、そのセッション内の pane にだけ送信します。別セッションを明示指定する機能はありません。
+送信記録は `.multiagent/agent-index/` に保存され、`agent-index` で確認できます。
 
 `<target>` は以下のいずれか：
 
@@ -35,4 +36,7 @@ agent-send others "作業完了を報告してください"
 
 # 複数指定
 agent-send claude,codex "確認してください"
+
+# 通信履歴を見る
+agent-index
 ```

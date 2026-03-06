@@ -14,6 +14,7 @@ EOF
 }
 
 SESSION_NAME="${MULTIAGENT_SESSION:-}"
+INDEX_DIR="${MULTIAGENT_WORKSPACE:-$PWD}/.multiagent/agent-index"
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -75,6 +76,16 @@ resolve_pane() {
   tmux show-environment -t "$SESSION_NAME" "$1" 2>/dev/null | sed 's/^[^=]*=//'
 }
 
+resolve_agent_name() {
+  case "$1" in
+    CLAUDE|claude|1) printf '%s\n' "claude" ;;
+    CODEX|codex|2) printf '%s\n' "codex" ;;
+    GEMINI|gemini|3) printf '%s\n' "gemini" ;;
+    COPILOT|copilot|4) printf '%s\n' "copilot" ;;
+    *) return 1 ;;
+  esac
+}
+
 resolve_self_agent() {
   local current_pane="${TMUX_PANE:-}"
   [[ -n "$current_pane" ]] || return 1
@@ -110,18 +121,67 @@ queue_pane() {
   PANE_TARGETS+=("$pane_id")
 }
 
+declare -a RESOLVED_TARGETS=()
+
+queue_target() {
+  local agent_name="$1"
+  local existing
+  for existing in "${RESOLVED_TARGETS[@]:-}"; do
+    [[ "$existing" == "$agent_name" ]] && return 0
+  done
+  RESOLVED_TARGETS+=("$agent_name")
+}
+
+append_index_entry() {
+  local sender="$1"
+  local targets joined_targets ts index_file
+  ts="$(date '+%Y-%m-%d %H:%M:%S')"
+  mkdir -p "$INDEX_DIR"
+  index_file="${INDEX_DIR}/${SESSION_NAME}.jsonl"
+  joined_targets="$(IFS=,; echo "${RESOLVED_TARGETS[*]}")"
+  python3 - "$index_file" "$ts" "$SESSION_NAME" "$sender" "$joined_targets" "$PAYLOAD" <<'PYEOF'
+import json, sys
+
+path, ts, session, sender, targets, payload = sys.argv[1:7]
+entry = {
+    "timestamp": ts,
+    "session": session,
+    "sender": sender,
+    "targets": [t for t in targets.split(",") if t],
+    "message": payload,
+}
+with open(path, "a") as f:
+    f.write(json.dumps(entry, ensure_ascii=True) + "\n")
+PYEOF
+}
+
 for target in "${TARGETS[@]}"; do
   case "$target" in
-    claude|1)  queue_pane "$(resolve_pane MULTIAGENT_PANE_CLAUDE)" || { echo "Target pane not found: claude" >&2; exit 1; } ;;
-    codex|2)   queue_pane "$(resolve_pane MULTIAGENT_PANE_CODEX)" || { echo "Target pane not found: codex" >&2; exit 1; } ;;
-    gemini|3)  queue_pane "$(resolve_pane MULTIAGENT_PANE_GEMINI)" || { echo "Target pane not found: gemini" >&2; exit 1; } ;;
-    copilot|4) queue_pane "$(resolve_pane MULTIAGENT_PANE_COPILOT)" || { echo "Target pane not found: copilot" >&2; exit 1; } ;;
+    claude|1)
+      queue_pane "$(resolve_pane MULTIAGENT_PANE_CLAUDE)" || { echo "Target pane not found: claude" >&2; exit 1; }
+      queue_target "claude"
+      ;;
+    codex|2)
+      queue_pane "$(resolve_pane MULTIAGENT_PANE_CODEX)" || { echo "Target pane not found: codex" >&2; exit 1; }
+      queue_target "codex"
+      ;;
+    gemini|3)
+      queue_pane "$(resolve_pane MULTIAGENT_PANE_GEMINI)" || { echo "Target pane not found: gemini" >&2; exit 1; }
+      queue_target "gemini"
+      ;;
+    copilot|4)
+      queue_pane "$(resolve_pane MULTIAGENT_PANE_COPILOT)" || { echo "Target pane not found: copilot" >&2; exit 1; }
+      queue_target "copilot"
+      ;;
     others)
       self_agent="$(resolve_self_agent)" || { echo "Cannot resolve current agent for target: others" >&2; exit 1; }
       for agent in CLAUDE CODEX GEMINI COPILOT; do
         [[ "$agent" == "$self_agent" ]] && continue
         pane="$(resolve_pane "MULTIAGENT_PANE_${agent}" 2>/dev/null || true)"
-        [[ -n "$pane" ]] && queue_pane "$pane"
+        if [[ -n "$pane" ]]; then
+          queue_pane "$pane"
+          queue_target "$(resolve_agent_name "$agent")"
+        fi
       done
       ;;
     *) echo "Unknown target: $target" >&2; exit 1 ;;
@@ -129,6 +189,10 @@ for target in "${TARGETS[@]}"; do
 done
 
 [[ ${#PANE_TARGETS[@]} -gt 0 ]] || { echo "No target panes resolved." >&2; exit 1; }
+
+SENDER_AGENT="$(resolve_self_agent | tr '[:upper:]' '[:lower:]' || true)"
+[[ -n "$SENDER_AGENT" ]] || SENDER_AGENT="external"
+append_index_entry "$SENDER_AGENT"
 
 for pane_id in "${PANE_TARGETS[@]}"; do
   send_to_pane "$pane_id"
