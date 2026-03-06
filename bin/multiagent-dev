@@ -895,10 +895,29 @@ start_agent() {
   tmux send-keys -t "$pane_id" "$launch_cmd" Enter
 }
 
+start_user_pane() {
+  local pane_id="$1" launch_cmd env_exports
+  printf -v env_exports 'export PATH=%s:$PATH MULTIAGENT_SESSION=%s MULTIAGENT_BIN_DIR=%s MULTIAGENT_WORKSPACE=%s' \
+    "$SCRIPT_DIR" "$SESSION_NAME" "$SCRIPT_DIR" "$WORKSPACE"
+  if [[ -z "${LOG_DIR+x}" ]]; then
+    printf -v env_exports '%s MULTIAGENT_LOG_DIR=%s' "$env_exports" "${WORKSPACE}/logs-dev"
+  elif [[ -n "$LOG_DIR" ]]; then
+    printf -v env_exports '%s MULTIAGENT_LOG_DIR=%s' "$env_exports" "$LOG_DIR"
+  fi
+  printf -v launch_cmd '%s; exec %s/multiagent-user-shell' "$env_exports" "$SCRIPT_DIR"
+  tmux select-pane -t "$pane_id" -T "terminal"
+  tmux send-keys -t "$pane_id" C-c
+  tmux send-keys -t "$pane_id" "$launch_cmd" Enter
+}
+
 copilot_idx=-1
 for (( i=0; i<NUM_AGENTS; i++ )); do
   [[ "${SELECTED_AGENTS[$i]}" == "copilot" ]] && copilot_idx=$i && break
 done
+
+if [[ -n "$USER_PANE_ID" ]]; then
+  start_user_pane "$USER_PANE_ID"
+fi
 
 if [[ $copilot_idx -ge 0 ]]; then
   start_agent "${PANES[$copilot_idx]}" "copilot"
