@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+USER_SHELL="${SHELL:-/bin/zsh}"
+
+case "$USER_SHELL" in
+  */zsh|*/bash) ;;
+  *)
+    if command -v zsh >/dev/null 2>&1; then
+      USER_SHELL="$(command -v zsh)"
+    else
+      USER_SHELL="/bin/bash"
+    fi
+    ;;
+esac
+
+SHELL_BASENAME="$(basename "$USER_SHELL")"
+INIT_DIR="$(mktemp -d "${TMPDIR:-/tmp}/multiagent-user-shell.${MULTIAGENT_SESSION:-session}.XXXXXX")"
+trap 'rm -rf "$INIT_DIR"' EXIT
+
+write_shortcuts() {
+  cat <<'EOF'
+brief() {
+  "$MULTIAGENT_BIN_DIR/multiagent-dev" brief --session "${1:-$MULTIAGENT_SESSION}"
+}
+
+follow() {
+  agent-index --follow "$@"
+}
+
+idx() {
+  agent-index "$@"
+}
+
+echo "[multiagent] shortcuts: brief, follow, idx"
+EOF
+}
+
+if [[ "$SHELL_BASENAME" == "zsh" ]]; then
+  cat > "${INIT_DIR}/.zshrc" <<EOF
+if [[ -f "\$HOME/.zshrc" ]]; then
+  source "\$HOME/.zshrc"
+fi
+
+$(write_shortcuts)
+EOF
+  export ZDOTDIR="$INIT_DIR"
+  exec "$USER_SHELL" -i
+fi
+
+cat > "${INIT_DIR}/.bashrc" <<EOF
+if [[ -f "\$HOME/.bashrc" ]]; then
+  source "\$HOME/.bashrc"
+elif [[ -f "\$HOME/.bash_profile" ]]; then
+  source "\$HOME/.bash_profile"
+fi
+
+$(write_shortcuts)
+EOF
+exec "$USER_SHELL" --rcfile "${INIT_DIR}/.bashrc" -i

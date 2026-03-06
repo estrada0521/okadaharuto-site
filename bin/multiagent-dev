@@ -385,8 +385,9 @@ send_agent_capability_briefing() {
   printf -v briefing '%s\n' \
     "Multiagent session note for ${agent_name}:" \
     "- You are running inside a tmux-based multiagent session. agent-send targets panes in this session." \
-    "- To message other agents, use: agent-send <claude|codex|gemini|copilot|others|claude,codex> \"message\"" \
+    "- To message other agents or the human inbox, use: agent-send <claude|codex|gemini|copilot|user|others|claude,codex> \"message\"" \
     "- To inspect message history, use: agent-index, agent-index --follow, and agent-index --agent <name>" \
+    "- agent-send user writes to the human inbox in agent-index/chat view. It does not inject text into the terminal pane." \
     "- For this briefing only, reply in this pane with: OK" \
     "- After this briefing, when another agent asks you to reply, you must reply with agent-send. Do not reply only in this pane." \
     "- Every normal reply sent with agent-send must start with [From: ${agent_name}] so the sender is explicit." \
@@ -959,12 +960,7 @@ start_agent() {
 }
 
 start_user_pane() {
-  local pane_id="$1" launch_cmd env_exports user_shell
-  user_shell="${SHELL:-/bin/zsh}"
-  case "$user_shell" in
-    */zsh|*/bash|*/sh) ;;
-    *) user_shell="/bin/zsh" ;;
-  esac
+  local pane_id="$1" launch_cmd env_exports
   printf -v env_exports 'export PATH=%s:$PATH MULTIAGENT_SESSION=%s MULTIAGENT_BIN_DIR=%s MULTIAGENT_WORKSPACE=%s' \
     "$SCRIPT_DIR" "$SESSION_NAME" "$SCRIPT_DIR" "$WORKSPACE"
   if [[ -z "${LOG_DIR+x}" ]]; then
@@ -972,7 +968,7 @@ start_user_pane() {
   elif [[ -n "$LOG_DIR" ]]; then
     printf -v env_exports '%s MULTIAGENT_LOG_DIR=%s' "$env_exports" "$LOG_DIR"
   fi
-  printf -v launch_cmd '%s; exec %s -i' "$env_exports" "$user_shell"
+  printf -v launch_cmd '%s; exec %s/multiagent-user-shell' "$env_exports" "$SCRIPT_DIR"
   tmux select-pane -t "$pane_id" -T "terminal"
   tmux send-keys -t "$pane_id" C-c
   tmux send-keys -t "$pane_id" "$launch_cmd" Enter

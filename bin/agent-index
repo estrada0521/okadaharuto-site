@@ -4,7 +4,7 @@ set -euo pipefail
 
 usage() {
   cat <<'EOF'
-Usage: agent-index [--session NAME] [--limit N] [--agent NAME] [--follow] [--json]
+Usage: agent-index [--session NAME] [--limit N] [--agent NAME] [--follow] [--json] [--chat]
 
 Shows indexed agent-send messages for the current session.
 EOF
@@ -14,6 +14,7 @@ SESSION_NAME="${MULTIAGENT_SESSION:-}"
 LIMIT=50
 JSON_MODE=0
 FOLLOW_MODE=0
+CHAT_MODE=0
 FILTER_AGENT=""
 
 resolve_session_log_dir() {
@@ -33,6 +34,12 @@ resolve_session_log_dir() {
   fi
   updated_key="$(date '+%y%m%d')"
   existing_dir="$(find "$log_dir" -maxdepth 1 -type d -name "${SESSION_NAME}_${created_key}_*" | head -n 1)"
+  if [[ -z "$existing_dir" ]]; then
+    existing_dir="$(find "$log_dir" -maxdepth 1 -type d -name "${SESSION_NAME}_*" | sort | tail -n 1)"
+  fi
+  if [[ -z "$existing_dir" ]]; then
+    existing_dir="$(find "${MULTIAGENT_WORKSPACE:-$PWD}" -maxdepth 3 -type d -name "${SESSION_NAME}_*" | sort | tail -n 1)"
+  fi
   session_dir="${log_dir}/${SESSION_NAME}_${created_key}_${updated_key}"
   if [[ -n "$existing_dir" ]] && [[ "$existing_dir" != "$session_dir" ]]; then
     printf '%s\n' "$existing_dir"
@@ -87,6 +94,7 @@ while [[ $# -gt 0 ]]; do
     --agent)   FILTER_AGENT="$2"; shift 2 ;;
     --follow)  FOLLOW_MODE=1; shift ;;
     --json)    JSON_MODE=1; shift ;;
+    --chat)    CHAT_MODE=1; shift ;;
     -h|--help) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 1 ;;
   esac
@@ -95,9 +103,425 @@ done
 SESSION_NAME="$(resolve_session_name)"
 SESSION_LOG_DIR="$(resolve_session_log_dir)"
 INDEX_FILE="${SESSION_LOG_DIR}/.agent-index.jsonl"
+if [[ ! -f "$INDEX_FILE" ]]; then
+  INDEX_FILE="$(find "${MULTIAGENT_WORKSPACE:-$PWD}" -maxdepth 4 -path "*/${SESSION_NAME}_*/.agent-index.jsonl" | sort | tail -n 1)"
+fi
 
 if [[ ! -f "$INDEX_FILE" ]]; then
   echo "No indexed messages found for session: $SESSION_NAME"
+  exit 0
+fi
+
+if [[ "$CHAT_MODE" -eq 1 ]]; then
+  CHAT_PORT="$(python3 - <<'PYEOF'
+import socket
+s = socket.socket()
+s.bind(("127.0.0.1", 0))
+print(s.getsockname()[1])
+s.close()
+PYEOF
+)"
+  CHAT_LOG="$(mktemp "${TMPDIR:-/tmp}/agent-index-chat.${SESSION_NAME}.XXXXXX")"
+  CHAT_LOG="${CHAT_LOG}.log"
+  CHAT_SERVER_SCRIPT="$(mktemp "${TMPDIR:-/tmp}/agent-index-chat-server.${SESSION_NAME}.XXXXXX")"
+  CHAT_SERVER_SCRIPT="${CHAT_SERVER_SCRIPT}.py"
+  CHAT_LOG_DIR="$(dirname "$SESSION_LOG_DIR")"
+  cat > "$CHAT_SERVER_SCRIPT" <<'PYEOF'
+import html
+import json
+import os
+import subprocess
+import sys
+from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
+from pathlib import Path
+from urllib.parse import parse_qs, urlparse
+
+index_path = Path(sys.argv[1])
+limit = int(sys.argv[2])
+filter_agent = sys.argv[3].strip().lower()
+session_name = sys.argv[4]
+follow_mode = sys.argv[5] == "1"
+port = int(sys.argv[6])
+agent_send_path = sys.argv[7]
+workspace = sys.argv[8]
+log_dir = sys.argv[9]
+
+def matches(entry):
+    if not filter_agent:
+        return True
+    if entry.get("sender", "").lower() == filter_agent:
+        return True
+    return any(t.lower() == filter_agent for t in entry.get("targets", []))
+
+def read_entries():
+    if not index_path.exists():
+        return []
+    entries = []
+    with index_path.open() as f:
+        for line in f:
+            line = line.strip()
+            if not line:
+                continue
+            entry = json.loads(line)
+            if matches(entry):
+                entries.append(entry)
+    return entries[-limit:]
+
+def payload():
+    return json.dumps({
+        "session": session_name,
+        "filter": filter_agent or "all",
+        "follow": follow_mode,
+        "source": str(index_path),
+        "targets": ["claude", "codex", "gemini", "copilot", "user", "others"],
+        "entries": read_entries(),
+    }, ensure_ascii=True).encode("utf-8")
+
+def send_message(target, message):
+    target = (target or "").strip()
+    message = (message or "").strip()
+    if not target:
+        return 400, {"ok": False, "error": "target is required"}
+    if not message:
+        return 400, {"ok": False, "error": "message is required"}
+    env = os.environ.copy()
+    env["MULTIAGENT_SESSION"] = session_name
+    env["MULTIAGENT_WORKSPACE"] = workspace
+    env["MULTIAGENT_LOG_DIR"] = log_dir
+    env["MULTIAGENT_BIN_DIR"] = str(Path(agent_send_path).parent)
+    try:
+        result = subprocess.run(
+            [agent_send_path, target, message],
+            capture_output=True,
+            text=True,
+            env=env,
+            check=False,
+        )
+    except Exception as exc:
+        return 500, {"ok": False, "error": str(exc)}
+    if result.returncode != 0:
+        return 400, {"ok": False, "error": (result.stderr or result.stdout or "agent-send failed").strip()}
+    return 200, {"ok": True}
+
+HTML = """<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>agent-index chat</title>
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #0a0f14;
+      --panel: rgba(16, 24, 33, 0.84);
+      --panel-strong: rgba(10, 16, 24, 0.92);
+      --line: rgba(167, 189, 214, 0.18);
+      --text: #e8f0f7;
+      --muted: #96a7ba;
+      --user: linear-gradient(135deg, #f97316, #ea580c);
+      --claude: linear-gradient(135deg, #f59e0b, #d97706);
+      --codex: linear-gradient(135deg, #22c55e, #15803d);
+      --gemini: linear-gradient(135deg, #38bdf8, #2563eb);
+      --copilot: linear-gradient(135deg, #fb7185, #e11d48);
+      --system: linear-gradient(135deg, #64748b, #334155);
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      font-family: "SF Pro Display", "Segoe UI", sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(56, 189, 248, 0.18), transparent 30%),
+        radial-gradient(circle at top right, rgba(249, 115, 22, 0.14), transparent 28%),
+        linear-gradient(180deg, #071018 0%, #0a0f14 50%, #101926 100%);
+      color: var(--text);
+    }
+    .shell {
+      width: min(1100px, calc(100vw - 32px));
+      margin: 24px auto;
+      border: 1px solid var(--line);
+      border-radius: 28px;
+      overflow: hidden;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      box-shadow: 0 30px 80px rgba(0, 0, 0, 0.45);
+    }
+    header {
+      padding: 22px 24px 18px;
+      border-bottom: 1px solid var(--line);
+      background: linear-gradient(180deg, rgba(255,255,255,0.05), rgba(255,255,255,0.01));
+    }
+    .eyebrow {
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.16em;
+      font-size: 11px;
+      margin-bottom: 10px;
+    }
+    h1 { margin: 0; font-size: clamp(28px, 4vw, 42px); line-height: 1; }
+    .sub { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; color: var(--muted); font-size: 14px; }
+    .pill {
+      padding: 8px 12px;
+      border-radius: 999px;
+      background: var(--panel-strong);
+      border: 1px solid var(--line);
+    }
+    .composer {
+      display: grid;
+      grid-template-columns: 160px minmax(0, 1fr) auto;
+      gap: 10px;
+      margin-top: 18px;
+    }
+    .composer select,
+    .composer textarea,
+    .composer button {
+      border: 1px solid var(--line);
+      background: rgba(7, 16, 24, 0.72);
+      color: var(--text);
+      border-radius: 16px;
+      font: inherit;
+    }
+    .composer select,
+    .composer button {
+      padding: 12px 14px;
+    }
+    .composer textarea {
+      min-height: 48px;
+      max-height: 140px;
+      resize: vertical;
+      padding: 12px 14px;
+      font: 14px/1.5 "SF Mono","SFMono-Regular",ui-monospace,monospace;
+    }
+    .composer button {
+      min-width: 110px;
+      font-weight: 700;
+      background: linear-gradient(135deg, rgba(34,197,94,0.9), rgba(21,128,61,0.9));
+      cursor: pointer;
+    }
+    .composer button:disabled {
+      opacity: 0.55;
+      cursor: wait;
+    }
+    .statusline {
+      margin-top: 10px;
+      min-height: 20px;
+      color: var(--muted);
+      font-size: 13px;
+    }
+    main { padding: 20px; display: flex; flex-direction: column; gap: 14px; }
+    .message {
+      max-width: min(760px, 92%);
+      border-radius: 24px;
+      padding: 14px 16px 16px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(255,255,255,0.04);
+      box-shadow: 0 14px 40px rgba(0,0,0,0.22);
+    }
+    .message.user { align-self: flex-end; background: linear-gradient(135deg, rgba(249,115,22,0.28), rgba(234,88,12,0.2)); }
+    .message.claude { background: linear-gradient(135deg, rgba(245,158,11,0.22), rgba(217,119,6,0.12)); }
+    .message.codex { background: linear-gradient(135deg, rgba(34,197,94,0.2), rgba(21,128,61,0.1)); }
+    .message.gemini { background: linear-gradient(135deg, rgba(56,189,248,0.18), rgba(37,99,235,0.12)); }
+    .message.copilot { background: linear-gradient(135deg, rgba(251,113,133,0.18), rgba(225,29,72,0.12)); }
+    .message.system { background: linear-gradient(135deg, rgba(100,116,139,0.18), rgba(51,65,85,0.12)); }
+    .meta { display: flex; gap: 8px; align-items: center; flex-wrap: wrap; color: var(--muted); font-size: 12px; margin-bottom: 10px; }
+    .sender { padding: 4px 10px; border-radius: 999px; color: white; font-weight: 700; text-transform: capitalize; background: var(--system); }
+    .message.user .sender { background: var(--user); }
+    .message.claude .sender { background: var(--claude); }
+    .message.codex .sender { background: var(--codex); }
+    .message.gemini .sender { background: var(--gemini); }
+    .message.copilot .sender { background: var(--copilot); }
+    pre { margin: 0; white-space: pre-wrap; word-break: break-word; font: 14px/1.6 "SF Mono","SFMono-Regular",ui-monospace,monospace; color: var(--text); }
+    @media (max-width: 700px) {
+      .shell { width: calc(100vw - 16px); margin: 8px auto; border-radius: 20px; }
+      header { padding: 18px; }
+      .composer { grid-template-columns: 1fr; }
+      main { padding: 14px; }
+      .message { max-width: 100%; }
+    }
+  </style>
+</head>
+<body>
+  <section class="shell">
+    <header>
+      <div class="eyebrow">Multiagent Chat View</div>
+      <h1 id="title">agent-index</h1>
+      <div class="sub">
+        <span class="pill" id="count">messages: 0</span>
+        <span class="pill" id="filter">filter: all</span>
+        <span class="pill" id="mode">mode: snapshot</span>
+        <span class="pill" id="source">source: -</span>
+      </div>
+      <form class="composer" id="composer">
+        <select id="target"></select>
+        <textarea id="message" placeholder="Message to send via agent-send"></textarea>
+        <button type="submit" id="send">Send</button>
+      </form>
+      <div class="statusline" id="statusline"></div>
+    </header>
+    <main id="messages"></main>
+  </section>
+  <script>
+    const followMode = new URLSearchParams(window.location.search).get("follow") === "1";
+    const roleClass = (sender) => {
+      sender = (sender || "").toLowerCase();
+      if (["user","claude","codex","gemini","copilot"].includes(sender)) return sender;
+      return "system";
+    };
+    const escapeHtml = (value) => value
+      .replaceAll("&", "&amp;")
+      .replaceAll("<", "&lt;")
+      .replaceAll(">", "&gt;");
+    const render = (data) => {
+      document.getElementById("title").textContent = data.session;
+      document.getElementById("count").textContent = `messages: ${data.entries.length}`;
+      document.getElementById("filter").textContent = `filter: ${data.filter}`;
+      document.getElementById("mode").textContent = `mode: ${followMode ? "follow" : "snapshot"}`;
+      document.getElementById("source").textContent = `source: ${data.source}`;
+      const select = document.getElementById("target");
+      if (!select.dataset.loaded) {
+        select.innerHTML = data.targets.map((target) => `<option value="${target}">${target}</option>`).join("");
+        select.dataset.loaded = "1";
+      }
+      const root = document.getElementById("messages");
+      if (!data.entries.length) {
+        root.innerHTML = `<article class="message system"><div class="meta"><span class="sender">agent-index</span></div><pre>No matching messages.</pre></article>`;
+        return;
+      }
+      root.innerHTML = data.entries.map((entry) => {
+        const cls = roleClass(entry.sender);
+        const targets = (entry.targets || []).join(", ") || "no target";
+        return `<article class="message ${cls}">
+          <div class="meta">
+            <span class="sender">${escapeHtml(entry.sender || "unknown")}</span>
+            <span class="arrow">to</span>
+            <span class="targets">${escapeHtml(targets)}</span>
+            <time>${escapeHtml(entry.timestamp || "")}</time>
+          </div>
+          <pre>${escapeHtml(entry.message || "")}</pre>
+        </article>`;
+      }).join("");
+      window.scrollTo({ top: document.body.scrollHeight, behavior: "smooth" });
+    };
+    const refresh = async () => {
+      const res = await fetch(`/messages?ts=${Date.now()}`, { cache: "no-store" });
+      render(await res.json());
+    };
+    const setStatus = (text, isError = false) => {
+      const node = document.getElementById("statusline");
+      node.textContent = text;
+      node.style.color = isError ? "#fda4af" : "";
+    };
+    document.getElementById("composer").addEventListener("submit", async (event) => {
+      event.preventDefault();
+      const button = document.getElementById("send");
+      const target = document.getElementById("target").value;
+      const message = document.getElementById("message");
+      const payload = message.value.trim();
+      if (!payload) {
+        setStatus("message is required", true);
+        return;
+      }
+      button.disabled = true;
+      setStatus(`sending to ${target}...`);
+      try {
+        const res = await fetch("/send", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target, message: payload }),
+        });
+        const data = await res.json();
+        if (!res.ok || !data.ok) {
+          throw new Error(data.error || "send failed");
+        }
+        message.value = "";
+        setStatus(`sent to ${target}`);
+        await refresh();
+      } catch (error) {
+        setStatus(error.message, true);
+      } finally {
+        button.disabled = false;
+      }
+    });
+    refresh();
+    if (followMode) {
+      setInterval(refresh, 1000);
+    }
+  </script>
+</body>
+</html>
+"""
+
+class Handler(BaseHTTPRequestHandler):
+    def log_message(self, format, *args):
+        return
+
+    def _send_json(self, status, body):
+        payload_bytes = json.dumps(body, ensure_ascii=True).encode("utf-8")
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json; charset=utf-8")
+        self.send_header("Cache-Control", "no-store")
+        self.send_header("Content-Length", str(len(payload_bytes)))
+        self.end_headers()
+        self.wfile.write(payload_bytes)
+
+    def do_GET(self):
+        parsed = urlparse(self.path)
+        if parsed.path == "/messages":
+            body = payload()
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        if parsed.path == "/" or parsed.path == "/index.html":
+            qs = parse_qs(parsed.query)
+            follow = "1" if qs.get("follow", ["0"])[0] == "1" else "0"
+            body = HTML.replace("mode: snapshot", f"mode: {'follow' if follow == '1' else 'snapshot'}").encode("utf-8")
+            self.send_response(200)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Cache-Control", "no-store")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+            return
+        self.send_response(404)
+        self.end_headers()
+
+    def do_POST(self):
+        parsed = urlparse(self.path)
+        if parsed.path != "/send":
+            self.send_response(404)
+            self.end_headers()
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        raw = self.rfile.read(length)
+        try:
+            data = json.loads(raw.decode("utf-8") or "{}")
+        except json.JSONDecodeError:
+            self._send_json(400, {"ok": False, "error": "invalid json"})
+            return
+        status, body = send_message(data.get("target", ""), data.get("message", ""))
+        self._send_json(status, body)
+
+server = ThreadingHTTPServer(("127.0.0.1", port), Handler)
+print(f"http://127.0.0.1:{port}/?follow={'1' if follow_mode else '0'}", flush=True)
+server.serve_forever()
+PYEOF
+  nohup python3 "$CHAT_SERVER_SCRIPT" "$INDEX_FILE" "$LIMIT" "$FILTER_AGENT" "$SESSION_NAME" "$FOLLOW_MODE" "$CHAT_PORT" "$PWD/bin/agent-send" "$PWD" "$CHAT_LOG_DIR" >"$CHAT_LOG" 2>&1 </dev/null &
+  disown || true
+  sleep 0.2
+  CHAT_URL="http://127.0.0.1:${CHAT_PORT}/?follow=${FOLLOW_MODE}"
+  if command -v open >/dev/null 2>&1; then
+    open "$CHAT_URL" >/dev/null 2>&1 || true
+  elif command -v xdg-open >/dev/null 2>&1; then
+    xdg-open "$CHAT_URL" >/dev/null 2>&1 || true
+  fi
+  echo "Opened chat view: $CHAT_URL"
   exit 0
 fi
 

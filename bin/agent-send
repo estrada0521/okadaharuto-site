@@ -7,7 +7,7 @@ usage() {
 Usage: agent-send <target> <text...>
 
 Targets:
-  claude | codex | gemini | copilot | others
+  claude | codex | gemini | copilot | user | others
   1      | 2     | 3      | 4
   claude,codex   (comma-separated targets)
 EOF
@@ -108,13 +108,14 @@ resolve_agent_name() {
     CODEX|codex|2) printf '%s\n' "codex" ;;
     GEMINI|gemini|3) printf '%s\n' "gemini" ;;
     COPILOT|copilot|4) printf '%s\n' "copilot" ;;
+    USER|user) printf '%s\n' "user" ;;
     *) return 1 ;;
   esac
 }
 
 resolve_self_agent() {
   local current_pane="${TMUX_PANE:-}"
-  [[ -n "$current_pane" ]] || return 1
+[[ -n "$current_pane" ]] || return 1
   for agent in CLAUDE CODEX GEMINI COPILOT; do
     local pane
     pane="$(resolve_pane "MULTIAGENT_PANE_${agent}" 2>/dev/null || true)"
@@ -143,6 +144,15 @@ current_pane_role() {
     fi
   fi
   resolve_self_agent | tr '[:upper:]' '[:lower:]'
+}
+
+normalize_payload() {
+  local sender="$1" payload="$2"
+  if [[ "$sender" == "user" ]] && [[ "$payload" != \[From:\ User\]* ]]; then
+    printf '%s\n' "[From: User] $payload"
+    return 0
+  fi
+  printf '%s\n' "$payload"
 }
 
 send_to_pane() {
@@ -221,6 +231,9 @@ for target in "${TARGETS[@]}"; do
       queue_pane "$(resolve_pane MULTIAGENT_PANE_COPILOT)" || { echo "Target pane not found: copilot" >&2; exit 1; }
       queue_target "copilot"
       ;;
+    user)
+      queue_target "user"
+      ;;
     others)
       sender_role="$(current_pane_role || true)"
       if [[ -z "$sender_role" ]]; then
@@ -242,12 +255,15 @@ for target in "${TARGETS[@]}"; do
   esac
 done
 
-[[ ${#PANE_TARGETS[@]} -gt 0 ]] || { echo "No target panes resolved." >&2; exit 1; }
-
 SENDER_AGENT="$(current_pane_role || true)"
 [[ -n "$SENDER_AGENT" ]] || SENDER_AGENT="user"
+PAYLOAD="$(normalize_payload "$SENDER_AGENT" "$PAYLOAD")"
+
+[[ ${#PANE_TARGETS[@]} -gt 0 || ${#RESOLVED_TARGETS[@]} -gt 0 ]] || { echo "No target panes resolved." >&2; exit 1; }
 append_index_entry "$SENDER_AGENT"
 
-for pane_id in "${PANE_TARGETS[@]}"; do
-  send_to_pane "$pane_id"
-done
+if [[ ${#PANE_TARGETS[@]} -gt 0 ]]; then
+  for pane_id in "${PANE_TARGETS[@]}"; do
+    send_to_pane "$pane_id"
+  done
+fi

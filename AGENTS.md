@@ -10,6 +10,7 @@ agent-send <target> "メッセージ"
 
 `agent-send` は現在の multiagent セッションを自動解決し、そのセッション内の pane にだけ送信します。別セッションを明示指定する機能はありません。
 送信記録は各セッションのログフォルダ内の `.agent-index.jsonl` に保存され、`agent-index` で確認できます。agent pane の外から送った `agent-send` と user pane から送った `agent-send` は `sender=user` として記録されます。
+user pane では `brief` `follow` `idx` のショートカットが使えます。
 
 `<target>` は以下のいずれか：
 
@@ -19,6 +20,7 @@ agent-send <target> "メッセージ"
 | `codex` または `2` | Codex |
 | `gemini` または `3` | Gemini |
 | `copilot` または `4` | Copilot |
+| `user` | User inbox (`agent-index` / chat view) |
 | `others` | 自分以外の全員 |
 | `claude,codex` | 複数指定 |
 
@@ -31,6 +33,9 @@ agent-send claude "このコードのバグを見つけて"
 # Copilotに依頼する
 agent-send copilot "テストを書いて"
 
+# User inbox に送る
+agent-send user "確認してください"
+
 # 自分以外の全員に送る
 agent-send others "作業完了を報告してください"
 
@@ -42,6 +47,15 @@ agent-index
 
 # 通信履歴を追いかける
 agent-index --follow
+
+# チャット画面風に外部ウィンドウで開く
+agent-index --chat
+
+# チャット画面をライブ更新する
+agent-index --chat --follow
+
+# チャット画面の入力欄から agent-send する
+# target を選んでメッセージを送信できる
 
 # 特定 agent 関連だけ見る
 agent-index --agent codex
