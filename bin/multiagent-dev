@@ -313,6 +313,8 @@ send_agent_capability_briefing() {
   local pane_id="$1" agent_name="$2" briefing
   briefing=$(cat <<EOF
 Multiagent session note for ${agent_name}:
+- You are running inside a tmux-based multiagent session. agent-send targets panes in this session.
+- あなたは tmux ベースの multiagent session 内で動作しています。agent-send はこの session 内の pane に送ります。
 - To message other agents, use: agent-send <claude|codex|gemini|copilot|others|claude,codex> "message"
 - To inspect message history, use: agent-index
 - If another agent asks you to reply, you must reply with agent-send. Do not reply only in this pane.
