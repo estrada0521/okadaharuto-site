@@ -13,7 +13,17 @@ EOF
 SESSION_NAME="${MULTIAGENT_SESSION:-}"
 LIMIT=50
 JSON_MODE=0
-INDEX_DIR="${MULTIAGENT_WORKSPACE:-$PWD}/.multiagent/agent-index"
+
+resolve_index_dir() {
+  local log_dir="${MULTIAGENT_LOG_DIR:-}"
+  if [[ -z "$log_dir" && -n "$SESSION_NAME" ]]; then
+    log_dir="$(tmux show-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR 2>/dev/null | sed 's/^[^=]*=//' || true)"
+  fi
+  if [[ -z "$log_dir" ]]; then
+    log_dir="${MULTIAGENT_WORKSPACE:-$PWD}/logs-dev"
+  fi
+  printf '%s\n' "${log_dir}/.agent-index"
+}
 
 session_workspace_value() {
   local session="$1"
@@ -65,6 +75,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 SESSION_NAME="$(resolve_session_name)"
+INDEX_DIR="$(resolve_index_dir)"
 INDEX_FILE="${INDEX_DIR}/${SESSION_NAME}.jsonl"
 
 if [[ ! -f "$INDEX_FILE" ]]; then

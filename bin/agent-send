@@ -14,7 +14,17 @@ EOF
 }
 
 SESSION_NAME="${MULTIAGENT_SESSION:-}"
-INDEX_DIR="${MULTIAGENT_WORKSPACE:-$PWD}/.multiagent/agent-index"
+
+resolve_index_dir() {
+  local log_dir="${MULTIAGENT_LOG_DIR:-}"
+  if [[ -z "$log_dir" && -n "$SESSION_NAME" ]]; then
+    log_dir="$(tmux show-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR 2>/dev/null | sed 's/^[^=]*=//' || true)"
+  fi
+  if [[ -z "$log_dir" ]]; then
+    log_dir="${MULTIAGENT_WORKSPACE:-$PWD}/logs-dev"
+  fi
+  printf '%s\n' "${log_dir}/.agent-index"
+}
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
   usage
@@ -136,6 +146,7 @@ append_index_entry() {
   local sender="$1"
   local targets joined_targets ts index_file
   ts="$(date '+%Y-%m-%d %H:%M:%S')"
+  INDEX_DIR="$(resolve_index_dir)"
   mkdir -p "$INDEX_DIR"
   index_file="${INDEX_DIR}/${SESSION_NAME}.jsonl"
   joined_targets="$(IFS=,; echo "${RESOLVED_TARGETS[*]}")"

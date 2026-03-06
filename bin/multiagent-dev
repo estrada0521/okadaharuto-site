@@ -637,6 +637,13 @@ fi
 tmux set-environment -t "$SESSION_NAME" MULTIAGENT_SESSION "$SESSION_NAME"
 tmux set-environment -t "$SESSION_NAME" MULTIAGENT_WORKSPACE "$WORKSPACE"
 tmux set-environment -t "$SESSION_NAME" MULTIAGENT_BIN_DIR "$SCRIPT_DIR"
+if [[ -z "${LOG_DIR+x}" ]]; then
+  tmux set-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR "${WORKSPACE}/logs-dev"
+elif [[ -z "$LOG_DIR" ]]; then
+  tmux set-environment -t "$SESSION_NAME" -u MULTIAGENT_LOG_DIR 2>/dev/null || true
+else
+  tmux set-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR "$LOG_DIR"
+fi
 tmux set-environment -t "$SESSION_NAME" -u CLAUDECODE 2>/dev/null || true
 
 for (( i=0; i<NUM_AGENTS; i++ )); do
