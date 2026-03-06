@@ -80,6 +80,7 @@ git diff -- bin/multiagent-dev
 - agent pane の外から実行した `agent-send` は `sender=user` として記録される
 - `--user-pane top|bottom` は human 用 terminal pane を window 全体の上段または下段に追加する
 - `--user-pane` 上で直接入力したコマンドは `sender=user`, `targets=["shell"]` で `agent-index` に記録される
+- agent pane に直接入力した内容も、Enter を押した時点で `sender=user`, `targets=["<agent>"]` として記録される
 - 各ディレクトリ内には `claude.log`, `claude.ans` のように agent ごとの最新内容だけが残る
 - 既存セッション名で新規作成すると失敗する
 - セッション削除は `kill` を明示したときだけ行う
