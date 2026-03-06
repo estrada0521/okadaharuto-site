@@ -10,6 +10,8 @@ Targets:
   claude | codex | gemini | copilot | others
   1      | 2     | 3      | 4
   claude,codex   (comma-separated targets)
+
+Messages sent outside an agent pane are indexed as sender=user.
 EOF
 }
 
@@ -217,7 +219,7 @@ done
 [[ ${#PANE_TARGETS[@]} -gt 0 ]] || { echo "No target panes resolved." >&2; exit 1; }
 
 SENDER_AGENT="$(resolve_self_agent | tr '[:upper:]' '[:lower:]' || true)"
-[[ -n "$SENDER_AGENT" ]] || SENDER_AGENT="external"
+[[ -n "$SENDER_AGENT" ]] || SENDER_AGENT="user"
 append_index_entry "$SENDER_AGENT"
 
 for pane_id in "${PANE_TARGETS[@]}"; do

@@ -31,6 +31,7 @@
   - `brief` は既存セッション中の各 agent へ通信機能の説明を手動送信する
   - `agent-index --follow`
   - `agent-index --agent <name>`
+  - agent pane の外から送った `agent-send` は `sender=user` として `agent-index` に記録する
   - `--user-pane top|bottom|none`
   - 既存セッションの自動 kill はしない
   - `status` / `resume` / `kill` は、`--session` 未指定時に現在 workspace の既存セッションを 1 件だけ自動解決する

@@ -77,6 +77,7 @@ git diff -- bin/multiagent-dev
 - `brief` は既存セッション中の各 agent へ通信機能の説明を手動で送る
 - `agent-index --follow` は通信履歴を追尾表示する
 - `agent-index --agent <name>` は sender または target にその agent を含む履歴に絞る
+- agent pane の外から実行した `agent-send` は `sender=user` として記録される
 - `--user-pane top|bottom` は human 用 terminal pane を window 全体の上段または下段に追加する
 - 各ディレクトリ内には `claude.log`, `claude.ans` のように agent ごとの最新内容だけが残る
 - 既存セッション名で新規作成すると失敗する
