@@ -74,7 +74,6 @@ git diff -- bin/multiagent-dev
 - 先頭の日付は作成日、末尾の日付は最終更新日
 - 詳細時刻と簡単な上書き記録は `.meta` に保存される
 - `brief` は既存セッション中の各 agent へ通信機能の説明を手動で送る
-- brief 本文は `AGENT_BRIEFING.md` に分離され、brief はそのファイルを読むよう指示する
 - `agent-index --follow` は通信履歴を追尾表示する
 - `agent-index --agent <name>` は sender または target にその agent を含む履歴に絞る
 - 各ディレクトリ内には `claude.log`, `claude.ans` のように agent ごとの最新内容だけが残る

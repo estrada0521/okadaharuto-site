@@ -20,7 +20,6 @@
   - `status` サブコマンド
   - `status --all`
   - `brief` サブコマンド
-  - brief 本文は `AGENT_BRIEFING.md`
   - `resume` サブコマンド
   - `resume --latest`
   - `kill` サブコマンド
