@@ -14,15 +14,29 @@ SESSION_NAME="${MULTIAGENT_SESSION:-}"
 LIMIT=50
 JSON_MODE=0
 
-resolve_index_dir() {
+resolve_session_log_dir() {
   local log_dir="${MULTIAGENT_LOG_DIR:-}"
+  local created_epoch created_key updated_key existing_dir session_dir
   if [[ -z "$log_dir" && -n "$SESSION_NAME" ]]; then
     log_dir="$(tmux show-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR 2>/dev/null | sed 's/^[^=]*=//' || true)"
   fi
   if [[ -z "$log_dir" ]]; then
     log_dir="${MULTIAGENT_WORKSPACE:-$PWD}/logs-dev"
   fi
-  printf '%s\n' "${log_dir}/.agent-index"
+  created_epoch="$(tmux display-message -p -t "$SESSION_NAME" '#{session_created}' 2>/dev/null || true)"
+  if [[ -n "$created_epoch" ]]; then
+    created_key="$(date -r "$created_epoch" '+%y%m%d' 2>/dev/null || date '+%y%m%d')"
+  else
+    created_key="$(date '+%y%m%d')"
+  fi
+  updated_key="$(date '+%y%m%d')"
+  existing_dir="$(find "$log_dir" -maxdepth 1 -type d -name "${SESSION_NAME}_${created_key}_*" | head -n 1)"
+  session_dir="${log_dir}/${SESSION_NAME}_${created_key}_${updated_key}"
+  if [[ -n "$existing_dir" ]] && [[ "$existing_dir" != "$session_dir" ]]; then
+    printf '%s\n' "$existing_dir"
+  else
+    printf '%s\n' "$session_dir"
+  fi
 }
 
 session_workspace_value() {
@@ -75,8 +89,8 @@ while [[ $# -gt 0 ]]; do
 done
 
 SESSION_NAME="$(resolve_session_name)"
-INDEX_DIR="$(resolve_index_dir)"
-INDEX_FILE="${INDEX_DIR}/${SESSION_NAME}.jsonl"
+SESSION_LOG_DIR="$(resolve_session_log_dir)"
+INDEX_FILE="${SESSION_LOG_DIR}/.agent-index.jsonl"
 
 if [[ ! -f "$INDEX_FILE" ]]; then
   echo "No indexed messages found for session: $SESSION_NAME"

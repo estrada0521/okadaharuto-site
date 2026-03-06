@@ -15,15 +15,31 @@ EOF
 
 SESSION_NAME="${MULTIAGENT_SESSION:-}"
 
-resolve_index_dir() {
+resolve_session_log_dir() {
   local log_dir="${MULTIAGENT_LOG_DIR:-}"
+  local created_epoch created_key updated_key existing_dir session_dir
   if [[ -z "$log_dir" && -n "$SESSION_NAME" ]]; then
     log_dir="$(tmux show-environment -t "$SESSION_NAME" MULTIAGENT_LOG_DIR 2>/dev/null | sed 's/^[^=]*=//' || true)"
   fi
   if [[ -z "$log_dir" ]]; then
     log_dir="${MULTIAGENT_WORKSPACE:-$PWD}/logs-dev"
   fi
-  printf '%s\n' "${log_dir}/.agent-index"
+  created_epoch="$(tmux display-message -p -t "$SESSION_NAME" '#{session_created}' 2>/dev/null || true)"
+  if [[ -n "$created_epoch" ]]; then
+    created_key="$(date -r "$created_epoch" '+%y%m%d' 2>/dev/null || date '+%y%m%d')"
+  else
+    created_key="$(date '+%y%m%d')"
+  fi
+  updated_key="$(date '+%y%m%d')"
+  mkdir -p "$log_dir"
+  existing_dir="$(find "$log_dir" -maxdepth 1 -type d -name "${SESSION_NAME}_${created_key}_*" | head -n 1)"
+  session_dir="${log_dir}/${SESSION_NAME}_${created_key}_${updated_key}"
+  if [[ -n "$existing_dir" ]] && [[ "$existing_dir" != "$session_dir" ]]; then
+    mv "$existing_dir" "$session_dir"
+  else
+    mkdir -p "$session_dir"
+  fi
+  printf '%s\n' "$session_dir"
 }
 
 if [[ "${1:-}" == "-h" || "${1:-}" == "--help" ]]; then
@@ -144,11 +160,10 @@ queue_target() {
 
 append_index_entry() {
   local sender="$1"
-  local targets joined_targets ts index_file
+  local targets joined_targets ts index_file session_log_dir
   ts="$(date '+%Y-%m-%d %H:%M:%S')"
-  INDEX_DIR="$(resolve_index_dir)"
-  mkdir -p "$INDEX_DIR"
-  index_file="${INDEX_DIR}/${SESSION_NAME}.jsonl"
+  session_log_dir="$(resolve_session_log_dir)"
+  index_file="${session_log_dir}/.agent-index.jsonl"
   joined_targets="$(IFS=,; echo "${RESOLVED_TARGETS[*]}")"
   python3 - "$index_file" "$ts" "$SESSION_NAME" "$sender" "$joined_targets" "$PAYLOAD" <<'PYEOF'
 import json, sys
