@@ -430,10 +430,8 @@ def agent_statuses():
             ).stdout
             prev = _pane_snapshots.get(pane_id)
             _pane_snapshots[pane_id] = content
-            if prev is None:
-                result[agent] = "running"   # first observation, state unknown
-            elif content != prev:
-                result[agent] = "busy"
+            if prev is None or content != prev:
+                result[agent] = "running"
             else:
                 result[agent] = "idle"
         except Exception:
@@ -515,10 +513,6 @@ HTML = """<!doctype html>
       font: 12px/1 "SF Pro Text","Segoe UI",sans-serif;
       color: var(--muted);
     }
-    @keyframes dot-pulse {
-      0%, 100% { box-shadow: 0 0 4px rgba(74,222,128,0.4); }
-      50%       { box-shadow: 0 0 10px rgba(74,222,128,0.85); }
-    }
     .status-dot {
       width: 7px;
       height: 7px;
@@ -527,7 +521,6 @@ HTML = """<!doctype html>
       transition: background 600ms ease, box-shadow 600ms ease;
     }
     .status-dot.idle    { background: rgba(255,255,255,0.12); }
-    .status-dot.busy    { background: #4ade80; animation: dot-pulse 1.4s ease-in-out infinite; }
     .status-dot.running { background: #4ade80; box-shadow: 0 0 6px rgba(74,222,128,0.5); }
     .status-dot.dead    { background: #f87171; }
     .status-dot.offline { background: rgba(255,255,255,0.06); }
