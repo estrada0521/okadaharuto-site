@@ -306,7 +306,6 @@ PYEOF
 import html
 import json
 import os
-import re
 import subprocess
 import sys
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -400,18 +399,8 @@ def send_message(target, message):
         return 400, {"ok": False, "error": (result.stderr or result.stdout or "agent-send failed").strip()}
     return 200, {"ok": True}
 
-IDLE_PATTERNS = {
-    "claude":  [r"^\s*>\s*$"],
-    "codex":   [r"^\s*>\s*$"],
-    "gemini":  [r"^\s*>\s*$"],
-    "copilot": [r"^\s*>\s*$"],
-}
-BUSY_PATTERNS = {
-    "claude":  [r"Esc to interrupt", r"⏺\s"],
-    "codex":   [r"Esc to interrupt"],
-    "gemini":  [r"Esc to interrupt"],
-    "copilot": [r"Esc to interrupt"],
-}
+# pane_id -> last captured content (for change detection)
+_pane_snapshots = {}
 
 def agent_statuses():
     result = {}
@@ -433,22 +422,20 @@ def agent_statuses():
             ).stdout.strip()
             if dead == "1":
                 result[agent] = "dead"
+                _pane_snapshots.pop(pane_id, None)
                 continue
             content = subprocess.run(
-                ["tmux", "capture-pane", "-p", "-S", "-8", "-t", pane_id],
+                ["tmux", "capture-pane", "-p", "-S", "-20", "-t", pane_id],
                 capture_output=True, text=True, timeout=2, check=False,
             ).stdout
-            status = "running"
-            for pat in BUSY_PATTERNS.get(agent, []):
-                if re.search(pat, content, re.MULTILINE):
-                    status = "busy"
-                    break
+            prev = _pane_snapshots.get(pane_id)
+            _pane_snapshots[pane_id] = content
+            if prev is None:
+                result[agent] = "running"   # first observation, state unknown
+            elif content != prev:
+                result[agent] = "busy"
             else:
-                for pat in IDLE_PATTERNS.get(agent, []):
-                    if re.search(pat, content, re.MULTILINE):
-                        status = "idle"
-                        break
-            result[agent] = status
+                result[agent] = "idle"
         except Exception:
             result[agent] = "offline"
     return result
