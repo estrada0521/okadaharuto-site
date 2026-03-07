@@ -673,7 +673,7 @@ HTML = """<!doctype html>
     .message-row {
       display: flex;
       align-items: flex-end;
-      gap: 24px;
+      gap: 12px;
       max-width: 100%;
     }
     .message-row.user {
@@ -684,6 +684,7 @@ HTML = """<!doctype html>
     }
     .message-row.user .message-wrap {
       order: 1;
+      flex-direction: row-reverse;
     }
     .avatar {
       width: 34px;
@@ -708,12 +709,16 @@ HTML = """<!doctype html>
     .message-row.copilot .avatar { color: var(--copilot-accent); }
     .message-row.system .avatar { color: var(--system-accent); }
     .message-wrap {
-      position: relative;
-      max-width: min(760px, calc(100% - 58px));
+      display: flex;
+      align-items: flex-start;
+      gap: 6px;
+      max-width: min(760px, calc(100% - 46px));
       min-width: 0;
     }
     .message {
       position: relative;
+      flex: 1;
+      min-width: 0;
       border-radius: 20px;
       padding: 12px 14px 14px;
       border: 1px solid rgba(255,255,255,0.08);
@@ -775,7 +780,7 @@ HTML = """<!doctype html>
       margin-bottom: 8px;
     }
     .message-row.user .meta {
-      justify-content: flex-end;
+      justify-content: flex-start;
     }
     .sender {
       padding: 2px 0;
@@ -806,7 +811,7 @@ HTML = """<!doctype html>
       header { padding: 12px 14px 10px; }
       .composer { grid-template-columns: 1fr; }
       main { padding: 12px; }
-      .message-wrap { max-width: calc(100% - 58px); }
+      .message-wrap { max-width: calc(100% - 46px); }
       .avatar { width: 28px; height: 28px; flex-basis: 28px; font-size: 11px; }
     }
     .md-body { font: 14px/1.65 "SF Pro Text","Segoe UI",sans-serif; color: var(--text); }
@@ -833,25 +838,20 @@ HTML = """<!doctype html>
     .md-body strong { font-weight: 700; }
     .md-body em { font-style: italic; }
     .copy-btn {
-      position: absolute;
-      top: 0;
-      right: 0;
-      transform: translateY(calc(-100% - 5px));
-      opacity: 0;
-      background: rgba(255,255,255,0.07);
-      border: 1px solid rgba(255,255,255,0.1);
-      border-radius: 5px;
-      padding: 2px 8px;
+      flex-shrink: 0;
+      align-self: flex-start;
+      margin-top: 10px;
+      background: none;
+      border: none;
+      padding: 4px;
       cursor: pointer;
-      color: var(--muted);
-      font: 11px/1.6 "SF Pro Text","Segoe UI",sans-serif;
-      transition: opacity 150ms ease, background 150ms ease, color 150ms ease;
-      white-space: nowrap;
+      color: rgba(255,255,255,0.28);
+      line-height: 1;
+      border-radius: 4px;
+      transition: color 150ms ease, background 150ms ease;
     }
-    .message-row.user .copy-btn { right: auto; left: 0; }
-    .message-row:hover .copy-btn { opacity: 1; }
-    .copy-btn:hover { background: rgba(255,255,255,0.14); color: var(--text); }
-    .copy-btn.copied { color: #4ade80; border-color: rgba(74,222,128,0.3); }
+    .copy-btn:hover { color: var(--muted); background: rgba(255,255,255,0.08); }
+    .copy-btn.copied { color: #4ade80; }
   </style>
 </head>
 <body>
@@ -985,7 +985,6 @@ HTML = """<!doctype html>
         return `<article class="message-row ${cls}">
           <div class="avatar">${escapeHtml(senderBadge(entry.sender || "unknown"))}</div>
           <div class="message-wrap" data-raw="${rawAttr}">
-          <button class="copy-btn" type="button">Copy</button>
           <div class="message ${cls}">
           <div class="meta">
             <span class="sender">${escapeHtml(entry.sender || "unknown")}</span>
@@ -995,6 +994,7 @@ HTML = """<!doctype html>
           </div>
           <div class="md-body">${renderMarkdown(body)}</div>
           </div>
+          <button class="copy-btn" type="button" title="コピー"><svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg></button>
           </div>
         </article>`;
       }).join("");
