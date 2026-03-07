@@ -323,6 +323,14 @@ workspace = sys.argv[8]
 log_dir = sys.argv[9]
 targets = [item for item in sys.argv[10].split(",") if item]
 
+_repo_root = Path(agent_send_path).parent.parent
+ICON_FILES = {
+    "claude":  _repo_root / "claude-color.svg",
+    "codex":   _repo_root / "codex-color.svg",
+    "gemini":  _repo_root / "gemini-color.svg",
+    "copilot": _repo_root / "github.svg",
+}
+
 def matches(entry):
     if not filter_agent:
         return True
@@ -445,6 +453,9 @@ HTML = """<!doctype html>
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title>agent-index chat</title>
   <script src="https://cdn.jsdelivr.net/npm/marked@12/marked.min.js"></script>
+  <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.css">
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/katex.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/katex@0.16.11/dist/contrib/auto-render.min.js"></script>
   <style>
     :root {
       color-scheme: dark;
@@ -702,6 +713,16 @@ HTML = """<!doctype html>
       position: relative;
       z-index: 1;
     }
+    .avatar.avatar-icon {
+      background: none;
+      border-color: transparent;
+      box-shadow: none;
+    }
+    .avatar img {
+      width: 28px;
+      height: 28px;
+      object-fit: contain;
+    }
     .message-row.user .avatar { color: var(--user-accent); }
     .message-row.claude .avatar { color: var(--claude-accent); }
     .message-row.codex .avatar { color: var(--codex-accent); }
@@ -868,7 +889,30 @@ HTML = """<!doctype html>
     const renderMarkdown = (text) => {
       if (typeof marked !== "undefined") {
         try {
-          return marked.parse(text, { breaks: true, gfm: true });
+          const mathBlocks = [];
+          let placeholderCount = 0;
+          
+          // Protection: replace math with spans that marked.js will ignore or pass through
+          let processedText = text.replace(/(\$\$[\s\S]+?\$\$|\$[\s\S]+?\$)/g, (match) => {
+            const id = `math-placeholder-${placeholderCount++}`;
+            mathBlocks.push({ id, content: match });
+            return `<span class="MATH_SAFE_BLOCK" data-id="${id}"></span>`;
+          });
+
+          let html = marked.parse(processedText, { breaks: true, gfm: true });
+          
+          // Restoration: replace the safe spans back with original math content
+          const tempDiv = document.createElement("div");
+          tempDiv.innerHTML = html;
+          tempDiv.querySelectorAll(".MATH_SAFE_BLOCK").forEach(span => {
+            const block = mathBlocks.find(b => b.id === span.dataset.id);
+            if (block) {
+              // We use textContent to ensure it's not double-parsed by HTML
+              span.outerHTML = block.content;
+            }
+          });
+          
+          return tempDiv.innerHTML;
         } catch (_) {}
       }
       // fallback: plain text
@@ -882,6 +926,14 @@ HTML = """<!doctype html>
       return "system";
     };
     const senderBadge = (sender) => ((sender || "?").trim()[0] || "?").toUpperCase();
+    const AGENT_ICON_NAMES = new Set(["claude", "codex", "gemini", "copilot"]);
+    const senderAvatar = (sender) => {
+      const s = (sender || "").toLowerCase();
+      if (AGENT_ICON_NAMES.has(s)) {
+        return { cls: "avatar-icon", html: `<img src="/icon/${s}" alt="${escapeHtml(s)}" width="28" height="28">` };
+      }
+      return { cls: "", html: escapeHtml(senderBadge(sender)) };
+    };
     const formatDayLabel = (value) => {
       const date = value ? new Date(value) : null;
       if (!date || Number.isNaN(date.getTime())) {
@@ -965,8 +1017,9 @@ HTML = """<!doctype html>
         const targets = (entry.targets || []).join(", ") || "no target";
         const body = stripSenderPrefix(entry.message || "");
         const rawAttr = escapeHtml(body).replaceAll('"', "&quot;");
+        const av = senderAvatar(entry.sender || "unknown");
         return `<article class="message-row ${cls}">
-          <div class="avatar">${escapeHtml(senderBadge(entry.sender || "unknown"))}</div>
+          <div class="avatar${av.cls ? ` ${av.cls}` : ""}">${av.html}</div>
           <div class="message-wrap" data-raw="${rawAttr}">
           <div class="message ${cls}">
           <div class="meta">
@@ -981,6 +1034,17 @@ HTML = """<!doctype html>
           </div>
         </article>`;
       }).join("");
+      if (typeof renderMathInElement !== "undefined") {
+        renderMathInElement(root, {
+          delimiters: [
+            {left: '$$', right: '$$', display: true},
+            {left: '$', right: '$', display: false},
+            {left: '\\(', right: '\\)', display: false},
+            {left: '\\[', right: '\\]', display: true}
+          ],
+          throwOnError: false
+        });
+      }
       if (shouldStickToBottom) {
         timeline.scrollTo({ top: timeline.scrollHeight, behavior: forceScroll ? "smooth" : "auto" });
       }
@@ -1148,6 +1212,21 @@ class Handler(BaseHTTPRequestHandler):
             self.send_header("Content-Length", str(len(body)))
             self.end_headers()
             self.wfile.write(body)
+            return
+        if parsed.path.startswith("/icon/"):
+            name = parsed.path[6:]
+            icon_path = ICON_FILES.get(name)
+            if icon_path and icon_path.exists():
+                body = icon_path.read_bytes()
+                self.send_response(200)
+                self.send_header("Content-Type", "image/svg+xml")
+                self.send_header("Cache-Control", "public, max-age=3600")
+                self.send_header("Content-Length", str(len(body)))
+                self.end_headers()
+                self.wfile.write(body)
+                return
+            self.send_response(404)
+            self.end_headers()
             return
         if parsed.path == "/" or parsed.path == "/index.html":
             qs = parse_qs(parsed.query)
