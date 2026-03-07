@@ -725,27 +725,6 @@ HTML = """<!doctype html>
       background: linear-gradient(180deg, rgba(255,255,255,0.06), rgba(255,255,255,0.035));
       box-shadow: 0 14px 40px rgba(0,0,0,0.22);
     }
-    .message::after {
-      content: "";
-      position: absolute;
-      bottom: 10px;
-      left: -6px;
-      width: 14px;
-      height: 14px;
-      border-left: 1px solid rgba(255,255,255,0.08);
-      border-bottom: 1px solid rgba(255,255,255,0.08);
-      background: inherit;
-      transform: rotate(45deg);
-      border-bottom-left-radius: 4px;
-    }
-    .message-row.user .message::after {
-      left: auto;
-      right: -6px;
-      border-left: none;
-      border-bottom: none;
-      border-right: 1px solid rgba(255,255,255,0.08);
-      border-top: 1px solid rgba(255,255,255,0.08);
-    }
     .message.user {
       background: linear-gradient(180deg, rgba(108, 135, 170, 0.26), rgba(88, 110, 140, 0.22));
       border-color: rgba(160, 184, 214, 0.18);
