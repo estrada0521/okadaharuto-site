@@ -430,7 +430,7 @@ def agent_statuses():
             ).stdout
             prev = _pane_snapshots.get(pane_id)
             _pane_snapshots[pane_id] = content
-            if prev is None or content != prev:
+            if prev is not None and content != prev:
                 result[agent] = "running"
             else:
                 result[agent] = "idle"
@@ -937,6 +937,7 @@ HTML = """<!doctype html>
       if (!picker.dataset.loaded) {
         selectedTargets = data.targets.includes("claude") ? ["claude"] : (data.targets[0] ? [data.targets[0]] : []);
         picker.dataset.loaded = "1";
+        renderAgentStatus(Object.fromEntries(data.targets.map((t) => [t, "idle"])));
       }
       renderTargetPicker(sessionActive ? data.targets : []);
       document.getElementById("message").disabled = !sessionActive;
@@ -1080,8 +1081,10 @@ HTML = """<!doctype html>
         if (res.ok) renderAgentStatus(await res.json());
       } catch (_) {}
     };
-    refreshAgentStatus();
-    setInterval(refreshAgentStatus, 3000);
+    setTimeout(() => {
+      refreshAgentStatus();
+      setInterval(refreshAgentStatus, 3000);
+    }, 5000);
     refresh({ forceScroll: true });
     if (followMode) {
       setInterval(refresh, 1000);
