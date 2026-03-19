@@ -1,0 +1,206 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#181818">
+  <title>okadaharuto.com</title>
+  <meta name="description" content="okadaharuto.com">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg-rgb: 24, 24, 24;
+      --bg: rgb(var(--bg-rgb));
+      --panel: rgba(var(--bg-rgb), 0.42);
+      --line: rgba(255, 255, 255, 0.08);
+      --text: rgb(252, 252, 252);
+      --muted: rgba(252, 252, 252, 0.68);
+      --soft: rgba(252, 252, 252, 0.5);
+      --page-side-pad: 14px;
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top, rgba(255, 255, 255, 0.08), transparent 38%),
+        linear-gradient(180deg, rgb(35, 35, 34) 0%, rgb(24, 24, 24) 38%, rgb(17, 17, 17) 100%);
+      color: var(--text);
+      font-family: "anthropicSans", "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    }
+    body {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+    .hub-page-header {
+      display: flex;
+      flex-direction: column;
+      width: 100%;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+      background: rgba(var(--bg-rgb), 0.42);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      border-bottom: 0.5px solid rgba(255, 255, 255, 0.1);
+      box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.06);
+    }
+    .hub-page-header-top {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: max(8px, env(safe-area-inset-top)) var(--page-side-pad) 0;
+      min-height: 52px;
+    }
+    .hub-page-title {
+      display: inline-flex;
+      align-items: center;
+      gap: 12px;
+      color: var(--text);
+      text-decoration: none;
+      transition: opacity 0.2s ease, transform 0.2s ease;
+    }
+    .hub-page-title:hover {
+      opacity: 0.84;
+      transform: scale(0.985);
+    }
+    .hub-page-wordmark {
+      font-size: 18px;
+      font-weight: 600;
+      letter-spacing: -0.03em;
+    }
+    .hub-page-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.9);
+      box-shadow: 0 0 24px rgba(255, 255, 255, 0.2);
+      flex: 0 0 auto;
+    }
+    .hub-page-menu-btn {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 44px;
+      height: 44px;
+      border: none;
+      border-radius: 999px;
+      background: transparent;
+      color: rgba(255, 255, 255, 0.96);
+      cursor: default;
+      box-shadow: none;
+    }
+    .hub-page-menu-btn svg {
+      display: block;
+      width: 24px;
+      height: 24px;
+    }
+    main {
+      flex: 1 1 auto;
+      width: 100%;
+      padding: 28px var(--page-side-pad) max(28px, env(safe-area-inset-bottom));
+    }
+    .shell {
+      width: min(880px, 100%);
+      margin: 0 auto;
+    }
+    .hero {
+      padding: 30px 22px 24px;
+      border-radius: 30px;
+      border: 0.5px solid var(--line);
+      background: var(--panel);
+      backdrop-filter: blur(28px) saturate(190%);
+      -webkit-backdrop-filter: blur(28px) saturate(190%);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+    .eyebrow {
+      margin: 0 0 14px;
+      font-size: 12px;
+      letter-spacing: 0.18em;
+      text-transform: uppercase;
+      color: var(--soft);
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(40px, 8vw, 86px);
+      line-height: 0.92;
+      letter-spacing: -0.07em;
+      font-weight: 620;
+      text-wrap: balance;
+    }
+    .sub {
+      margin: 18px 0 0;
+      max-width: 42rem;
+      color: var(--muted);
+      font-size: 17px;
+      line-height: 1.78;
+    }
+    .toolbar {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .toolbar a,
+    .toolbar span {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      min-height: 46px;
+      padding: 0 18px;
+      border-radius: 999px;
+      border: 0.5px solid rgba(255, 255, 255, 0.1);
+      background: rgba(255, 255, 255, 0.03);
+      color: rgba(255, 255, 255, 0.92);
+      text-decoration: none;
+      transition: background 0.16s ease, border-color 0.16s ease, transform 0.16s ease;
+    }
+    .toolbar a:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.16);
+      transform: translateY(-1px);
+    }
+    .meta {
+      margin-top: 22px;
+      color: rgba(252, 252, 252, 0.46);
+      font-size: 13px;
+      line-height: 1.65;
+    }
+  </style>
+</head>
+<body>
+  <header class="hub-page-header">
+    <div class="hub-page-header-top">
+      <a href="/" class="hub-page-title" aria-label="okadaharuto.com">
+        <span class="hub-page-dot" aria-hidden="true"></span>
+        <span class="hub-page-wordmark">okadaharuto.com</span>
+      </a>
+      <button class="hub-page-menu-btn" aria-label="Menu" tabindex="-1">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1" stroke-linecap="round">
+          <line x1="3" y1="8" x2="21" y2="8"></line>
+          <line x1="6" y1="16" x2="21" y2="16"></line>
+        </svg>
+      </button>
+    </div>
+  </header>
+  <main>
+    <div class="shell">
+      <section class="hero">
+        <p class="eyebrow">okadaharuto.com</p>
+        <h1>Haruto Okada</h1>
+        <p class="sub">
+          Personal site for notes, experiments, and small public releases.
+          The full content is still being prepared.
+        </p>
+        <div class="toolbar">
+          <a href="https://hub.okadaharuto.com/">Private Hub</a>
+        </div>
+        <p class="meta">
+          A minimal public landing page for now.
+        </p>
+      </section>
+    </div>
+  </main>
+</body>
+</html>
