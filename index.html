@@ -1,0 +1,114 @@
+<!doctype html>
+<html lang="ja">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#181818">
+  <title>okadaharuto.com</title>
+  <meta name="description" content="okadaharuto.com temporary landing page">
+  <style>
+    :root {
+      color-scheme: dark;
+      --bg: #181818;
+      --panel: rgba(255, 255, 255, 0.05);
+      --line: rgba(255, 255, 255, 0.10);
+      --text: rgb(252, 252, 252);
+      --muted: rgba(252, 252, 252, 0.66);
+      --accent: rgba(252, 252, 252, 0.92);
+    }
+    * { box-sizing: border-box; }
+    html, body {
+      margin: 0;
+      min-height: 100%;
+      background:
+        radial-gradient(circle at top, rgba(255,255,255,0.07), transparent 42%),
+        linear-gradient(180deg, #20201f 0%, #181818 38%, #121212 100%);
+      color: var(--text);
+      font-family: "SF Pro Display", "SF Pro Text", "Hiragino Sans", "Yu Gothic UI", sans-serif;
+    }
+    body {
+      min-height: 100vh;
+      padding: max(24px, env(safe-area-inset-top)) 24px max(24px, env(safe-area-inset-bottom));
+      display: grid;
+      place-items: center;
+    }
+    main {
+      width: min(760px, 100%);
+      border: 1px solid var(--line);
+      border-radius: 30px;
+      padding: 30px 24px 26px;
+      background: var(--panel);
+      backdrop-filter: blur(18px);
+      -webkit-backdrop-filter: blur(18px);
+      box-shadow: 0 24px 80px rgba(0, 0, 0, 0.28);
+    }
+    .eyebrow {
+      margin: 0 0 16px;
+      color: var(--muted);
+      font-size: 12px;
+      letter-spacing: 0.16em;
+      text-transform: uppercase;
+    }
+    h1 {
+      margin: 0;
+      font-size: clamp(38px, 9vw, 88px);
+      line-height: 0.9;
+      letter-spacing: -0.06em;
+      font-weight: 600;
+    }
+    p {
+      margin: 18px 0 0;
+      max-width: 34rem;
+      color: var(--muted);
+      font-size: 16px;
+      line-height: 1.8;
+    }
+    .links {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      margin-top: 28px;
+    }
+    .links a {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      min-height: 42px;
+      padding: 0 16px;
+      border: 1px solid var(--line);
+      border-radius: 999px;
+      color: var(--accent);
+      text-decoration: none;
+      background: rgba(255, 255, 255, 0.03);
+      transition: background 140ms ease, transform 140ms ease, border-color 140ms ease;
+    }
+    .links a:hover {
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.18);
+      transform: translateY(-1px);
+    }
+    .foot {
+      margin-top: 22px;
+      color: rgba(252, 252, 252, 0.46);
+      font-size: 13px;
+      line-height: 1.6;
+    }
+  </style>
+</head>
+<body>
+  <main>
+    <p class="eyebrow">okadaharuto.com</p>
+    <h1>Temporary landing.</h1>
+    <p>
+      This domain is live. The private multiagent workspace is served separately on
+      <strong>hub.okadaharuto.com</strong>.
+    </p>
+    <div class="links">
+      <a href="https://hub.okadaharuto.com/">Private Hub</a>
+    </div>
+    <p class="foot">
+      This page is intended to be replaced later with a proper public site.
+    </p>
+  </main>
+</body>
+</html>
