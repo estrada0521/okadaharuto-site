@@ -1,6 +1,6 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
-  "name": "okadaharuto-site",
+  "name": "example-public-static-site",
   "compatibility_date": "2025-09-27",
   "observability": {
     "enabled": true
