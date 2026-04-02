@@ -40,3 +40,10 @@ docs/cursor-to-user-chat.md
 
 # Notification sounds — add your own OGG files (see sounds/README.md)
 sounds/*.ogg
+
+# wrangler files
+.wrangler
+.dev.vars*
+!.dev.vars.example
+.env*
+!.env.example
